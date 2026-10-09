@@ -1,0 +1,24 @@
+# Манифест плагина all_chats_download для AyuGram (Telegrah API).
+# Файл входит в архив all_chats_download.plugin на верхнем уровне.
+
+[plugin]
+id = "all_chats_download"
+name = "Скачать чат 💾"
+version = "1.0.0"
+author = "all_chats_download"
+description = """Экспорт всей истории открытого чата или группы в .txt файл \
+в папке «Загрузки». Пункт «💾 Скачать чат» появляется в меню «три точки»; \
+для больших чатов показывается счётчик «Загружено X / Y» с возможностью отмены."""
+entrypoint = "plugin.py"          # модуль с async init_plugin(ctx, state_dict)
+icon = "icon.png"                 # значок загрузки + эмодзи сообщения 💬 снизу
+min_host_version = "0.1"
+permissions = ["messages", "dialogs"]   # чтение истории и списка диалогов
+storage = true                          # хост передаёт персистентный state_dict
+
+[[menu]]
+# Пункт добавляется динамически через ctx.add_menu_item при старте плагина;
+# секция описана для наглядности — хосты, читающие декларативное меню,
+# зарегистрируют его сами.
+placement = "chat_overflow"         # меню «три точки» внутри чата
+text = "💾 Скачать чат"
+callback = "acd_download_chat"
