@@ -12,12 +12,11 @@ import sys
 import types
 
 # Тестовый HOME, чтобы «Загрузки» падали во временную папку
+import shutil
+
 TEST_HOME = "/tmp/acd_test_home"
-if os.path.isdir(TEST_HOME):
-    for f in os.listdir(TEST_HOME):
-        os.remove(os.path.join(TEST_HOME, f))
-else:
-    os.makedirs(TEST_HOME)
+shutil.rmtree(TEST_HOME, ignore_errors=True)
+os.makedirs(TEST_HOME)
 os.environ["HOME"] = TEST_HOME
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -73,8 +72,11 @@ class FakeClient:
                                      title="Рабочий чат <тест>/group",
                                      username=None)
 
-    async def get_messages_count(self, entity):
-        return len(MESSAGES)
+    async def iter_dialogs(self):
+        # как в Telethon: PeerDialog c total_messages
+        yield types.SimpleNamespace(
+            entity=types.SimpleNamespace(id=-100123),
+            total_messages=len(MESSAGES))
 
     async def iter_messages(self, entity, reverse=False, wait_time=0):
         for m in MESSAGES:  # от новых к старым, как в Telethon
