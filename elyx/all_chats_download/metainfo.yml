@@ -1,0 +1,10 @@
+# Метаданные структурированного Elyx-плагина (docs: Elyx / Metadata).
+# id и name обязательны; description берётся из текущей локали ({plugin_description}).
+id: all_chats_download
+name: "Скачать чат 💾"
+description: "{plugin_description}"
+author: "all_chats_download"
+version: "1.0.0"
+icon: exteraPlugins/1
+app_version: ">=12.5.1"
+sdk_version: ">=1.4.4.3"

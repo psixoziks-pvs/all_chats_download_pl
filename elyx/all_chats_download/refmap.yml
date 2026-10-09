@@ -1,0 +1,6 @@
+# Elyx refmap: связывает физические пути архива с их runtime-назначением.
+# Пути относительные корня архива (см. docs: Elyx / Project Structure).
+metainfo: metainfo.yml
+main: main.py
+assets: assets
+strings: strings
