@@ -18,6 +18,9 @@ TEST_HOME = "/tmp/acd_test_home"
 shutil.rmtree(TEST_HOME, ignore_errors=True)
 os.makedirs(TEST_HOME)
 os.environ["HOME"] = TEST_HOME
+# Тестируем локализацию на русском (эмуляция системного языка устройства);
+# без этой переменной язык берётся из окружения/локали ОС.
+os.environ.setdefault("ACD_FORCE_LANG", "ru")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -111,7 +114,8 @@ class FakeCtx:
         self.dialogs.append({"title": title, "message": message,
                              "buttons": buttons})
         texts = [b["text"] for b in (buttons or [])]
-        if CANCEL_AT and "Отменить" in texts:
+        if CANCEL_AT and ("\u041e\u0442\u043c\u0435\u043d\u0438\u0442\u044c" in texts
+                          or "Cancel" in texts):
             # имитируем нажатие «Отменить»: ставим флаг отмены,
             # когда экспорт его зарегистрирует
             async def _click():
@@ -123,8 +127,8 @@ class FakeCtx:
                     await asyncio.sleep(0.01)
             asyncio.ensure_future(_click())
             return {"button": "acd_cancel"}
-        return {"button": "acd_open" if "📂 Открыть папку" in texts
-                else "acd_close"}
+        return {"button": "acd_open" if any(
+            x.startswith("\U0001F4C2 ") for x in texts) else "acd_close"}
 
     async def show_alert(self, text):
         self.alerts.append(text)
@@ -146,7 +150,7 @@ async def main():
 
     # 2. Клик по кнопке -> фоновый экспорт
     _, cb = [(t, c) for t, c in ctx.menu_items.values()
-             if "Скачать чат" in t][0]
+             if "\U0001F4BE" in t][0]
     await cb()
 
     # ждём завершения/отмены
@@ -195,11 +199,14 @@ async def main():
     print("OK: формат файла соответствует концепции")
 
     # 3. Диалог результата
-    done_dlgs = [d for d in ctx.dialogs if "экспортирован" in d["message"]]
+    done_dlgs = [d for d in ctx.dialogs
+                 if "\u044d\u043a\u0441\u043f\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u0430\u043d"
+                 in d["message"].lower() or "exported" in d["message"].lower()]
     assert done_dlgs, ctx.dialogs
     d = done_dlgs[-1]
     btns = [b["text"] for b in d["buttons"]]
-    assert "📂 Открыть папку" in btns and "ОК" in btns, btns
+    assert any(b.startswith("\U0001F4C2 ") for b in btns), btns
+    assert any(b in ("\u041e\u041a", "OK") for b in btns), btns
     print("OK: диалог «Чат экспортирован…» с кнопками", btns)
 
     # 4. Ошибок не было

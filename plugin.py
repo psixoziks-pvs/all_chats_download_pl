@@ -30,12 +30,39 @@ import re
 import sys
 from datetime import datetime
 
+# Локализация: язык подстраивается под системный язык устройства
+# (модуль i18n.py — языки Европы, Северной и Южной Америки, Азии;
+# международный язык по умолчанию — английский).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    import i18n as _i18n
+except Exception:  # если i18n не рядом — работает на английском
+    _i18n = None
+
+
+_locale_checked = [False]
+
+
+def t(key, **kwargs):
+    """Перевод строки по ключу (fallback — сам ключ)."""
+    if _i18n is not None:
+        # При первом обращении перечитываем окружение/локаль ОС: язык
+        # подстраивается под системный язык устройства пользователя.
+        if not _locale_checked[0]:
+            _locale_checked[0] = True
+            try:
+                _i18n.reload_locale()
+            except Exception:
+                pass
+        return _i18n.t(key, **kwargs)
+    return key
+
+
 # Метаданные плагина (совпадают с plugin.toml внутри архива .plugin)
 PLUGIN_ID = "all_chats_download"
-PLUGIN_NAME = "Скачать чат"
+PLUGIN_NAME = t("menu_item")          # локализуется автоматически
 PLUGIN_VERSION = "1.0.0"
-PLUGIN_DESCRIPTION = ("Экспорт всей истории открытого чата/группы в .txt "
-                      "в папку «Загрузки» (пункт 💾 в меню «три точки»).")
+PLUGIN_DESCRIPTION = t("cmd_help")     # локализуется автоматически
 
 IS_ANDROID = sys.platform == "android"
 
@@ -50,19 +77,34 @@ if IS_ANDROID:
     DOWNLOADS_DIR = os.path.join(_EXT, "Download")
 else:
     home = os.path.expanduser("~")
+    # Имя папки загрузок зависит от локали ОС: в русской Windows/Linux она
+    # называется «Загрузки», в остальных — «Downloads». Берём XDG-подсказку,
+    # иначе — имя по активной локали плагина.
     ru_name = "\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0438"  # «Загрузки»
-    ru_dir = os.path.join(home, ru_name)
+    _loc_names = {"ru": ru_name,
+                  "uk": "\u0417\u0430\u0432\u0430\u043d\u0442\u0430\u0436\u0435\u043d\u043d\u044f",
+                  "be": "\u0421\u043f\u0430\u043c\u043f\u043e\u0432\u0430\u043d\u043d\u0456"}
+    loc = (_i18n.ACTIVE_LOCALE if _i18n else "en").split("-")[0]
+    preferred = _loc_names.get(loc, "Downloads")
     xdg = os.environ.get("XDG_DOWNLOAD_DIR") or ""
-    if (os.path.isdir(ru_dir) or not os.path.isdir(home) or
-            not os.path.isdir(os.path.join(home, "Downloads"))) and xdg != ru_dir:
-        # Русская локаль или нет стандартной папки Downloads — создаём «Загрузки»
-        DOWNLOADS_DIR = ru_dir
+    ru_dir = os.path.join(home, ru_name)
+    dl_dir = os.path.join(home, "Downloads")
+    loc_dir = os.path.join(home, preferred)
+    if xdg and os.path.isdir(xdg):
+        DOWNLOADS_DIR = xdg
+    elif os.path.isdir(ru_dir):
+        DOWNLOADS_DIR = ru_dir          # уже существующая «Загрузки» — приоритет
+    elif os.path.isdir(loc_dir):
+        DOWNLOADS_DIR = loc_dir
+    elif os.path.isdir(dl_dir):
+        DOWNLOADS_DIR = dl_dir
     else:
-        DOWNLOADS_DIR = xdg or os.path.join(home, "Downloads")
+        # Стандартной папки нет — создаём с именем, принятым в этой локали
+        DOWNLOADS_DIR = loc_dir if preferred != "Downloads" else dl_dir
     try:
         os.makedirs(DOWNLOADS_DIR, exist_ok=True)
     except Exception:
-        DOWNLOADS_DIR = ru_dir
+        DOWNLOADS_DIR = dl_dir
         os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
 BATCH_SIZE = 100          # размер пачки при запросе истории (~100 сообщений)
@@ -103,47 +145,47 @@ def get_media_label(message) -> str:
     """Пометка для нетекстовых сообщений: [фото], [видео], [голосовое] и т.д."""
     m = message
     if getattr(m, "sticker", None):
-        return "[стикер]"
+        return "[%s]" % t("media_sticker")
     if getattr(m, "voice", None):
-        return "[голосовое]"
+        return "[%s]" % t("media_voice")
     if getattr(m, "audio", None):
-        return "[аудио]"
+        return "[%s]" % t("media_audio")
     if getattr(m, "video_note", None):
-        return "[видеосообщение]"
+        return "[%s]" % t("media_video_note")
     if getattr(m, "video", None):
-        return "[видео]"
+        return "[%s]" % t("media_video")
     if getattr(m, "round_message", None) or getattr(m, "round_video", None):
-        return "[видеосообщение]"
+        return "[%s]" % t("media_video_note")
     if getattr(m, "photo", None):
-        return "[фото]"
+        return "[%s]" % t("media_photo")
     if getattr(m, "document", None):
-        return "[документ]"
+        return "[%s]" % t("media_document")
     if getattr(m, "contact", None):
-        return "[контакт]"
+        return "[%s]" % t("media_contact")
     if getattr(m, "location", None) or getattr(m, "geo", None):
-        return "[геопозиция]"
+        return "[%s]" % t("media_location")
     if getattr(m, "poll", None):
-        return "[опрос]"
+        return "[%s]" % t("media_poll")
     if getattr(m, "invoice", None):
-        return "[счёт]"
+        return "[%s]" % t("media_invoice")
     if getattr(m, "game", None):
-        return "[игра]"
+        return "[%s]" % t("media_game")
     if getattr(m, "gif", None):
-        return "[gif]"
+        return "[%s]" % t("media_gif")
     if getattr(m, "venue", None):
-        return "[место]"
+        return "[%s]" % t("media_venue")
     action = getattr(m, "action", None)
     if action:
         return "[%s]" % str(action).lower()
-    return "[не текст]"
+    return "[%s]" % t("media_not_text")
 
 
 def format_sender(sender, chat_id) -> str:
     """Имя отправителя: 'Вы' для себя, иначе первое/последнее имя или @username."""
     if sender is None:
-        return "Неизвестный"
+        return t("unknown_sender")
     if getattr(sender, "self", False):
-        return "Вы"
+        return t("you")
     first = getattr(sender, "first_name", "") or ""
     last = getattr(sender, "last_name", "") or ""
     name = (first + " " + last).strip()
@@ -239,7 +281,7 @@ async def export_chat(client, entity, cancel_event, on_progress=None):
     ExportCancelled, если был установлен флаг отмены.
     """
     title = getattr(entity, "title", None) or \
-        getattr(entity, "username", None) or "Чат"
+        getattr(entity, "username", None) or t("fallback_title")
 
     total = await get_dialog_total(client, entity)
 
@@ -280,12 +322,14 @@ async def export_chat(client, entity, cancel_event, on_progress=None):
         if on_progress and now - last_progress_ts >= 0.8:
             last_progress_ts = now
             if total > 0:
-                txt = ("⏬ Экспорт чата: %s\nЗагружено %d / %d %s" % (
-                    title, len(records), total,
-                    progress_bar(len(records), total)))
+                txt = "⏬ %s: %s\n%s %s" % (
+                    t("progress_title"), title,
+                    t("loaded_of", done=len(records), total=total),
+                    progress_bar(len(records), total))
             else:
-                txt = "⏬ Экспорт чата: %s\nЗагружено %d сообщений…" % (
-                    title, len(records))
+                txt = "⏬ %s: %s\n%s" % (
+                    t("progress_title"), title,
+                    t("loaded_n", done=len(records)))
             on_progress(txt)
 
     async for message in client.iter_messages(entity, reverse=False,
@@ -320,9 +364,9 @@ async def export_chat(client, entity, cancel_event, on_progress=None):
     path = os.path.join(DOWNLOADS_DIR, fname)
 
     header = [
-        "Чат: %s" % title,
-        "Экспортировано: %s" % datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "Всего сообщений: %d" % len(lines),
+        t("hdr_chat", title=title),
+        t("hdr_exported", when=datetime.now().strftime("%Y-%m-%d %H:%M")),
+        t("hdr_total", count=len(lines)),
         "─" * 29,
     ]
     # Собираем через list+join вместо инкрементальной конкатенации строк
@@ -404,7 +448,7 @@ async def run_export(ctx, chat_id):
             except Exception:
                 pass
 
-    toast("Начинаю экспорт чата…")
+    toast(t("start_toast"))
 
     dialog_open = True  # пока открыт прогресс-диалог — обновляем его текстом
 
@@ -428,9 +472,9 @@ async def run_export(ctx, chat_id):
         # вся работа с «синхронный/асинхронный хост» спрятана внутри ask_dialog.
         choice = await ask_dialog(
             ctx,
-            "Экспорт чата 💾",
-            "Подготовка к выгрузке…",
-            [("Отменить", "acd_cancel")],
+            "%s \U0001F4BE" % t("progress_title"),
+            t("preparing"),
+            [(t("cancel"), "acd_cancel")],
         )
         if choice == "acd_cancel":
             cancel.set()
@@ -489,24 +533,25 @@ async def run_export(ctx, chat_id):
         # Тот же самый ask_dialog, что и для прогресса — единая логика.
         choice = await ask_dialog(
             ctx,
-            "Готово 💾",
-            ("Чат экспортирован (%d сообщений).\n"
-             "Файл в папке «Загрузки»:\n%s" % (count, path)),
-            [("📂 Открыть папку", "acd_open"), ("ОК", "acd_close")],
+            "%s \U0001F4BE" % t("done_title"),
+            t("done_body", count=count, dir=os.path.basename(DOWNLOADS_DIR),
+              path=path),
+            [("\U0001F4C2 " + t("open_folder"), "acd_open"),
+             (t("ok"), "acd_close")],
         )
         if choice == "acd_open":
             await open_folder(ctx, path)
     except ExportCancelled:
         await _close_progress_dialog()
-        toast("Экспорт отменён")
+        toast(t("cancelled"))
     except asyncio.CancelledError:
         await _close_progress_dialog()
-        toast("Экспорт отменён")
+        toast(t("cancelled"))
         raise
     except Exception as e:
         await _close_progress_dialog()
         try:
-            await ctx.show_alert("Ошибка экспорта: %r" % (e,))
+            await ctx.show_alert(t("error", err=repr(e)))
         except Exception:
             print("[all_chats_download] error:", repr(e))
     finally:
@@ -548,7 +593,7 @@ async def open_folder(ctx, path):
         try:
             await ctx.copy_to_clipboard(folder)
             if tg is not None:
-                tg.showToast("Путь скопирован: %s" % folder)
+                tg.showToast(t("path_copied", folder=folder))
         except Exception:
             pass
 
@@ -581,7 +626,7 @@ async def add_button(ctx):
 
     if chat_id is None:
         mid = await ctx.add_menu_item(
-            "💾 Сначала откройте чат", lambda: _noop())
+            "\U0001F4BE " + t("need_chat"), lambda: _noop())
         state["menu"] = mid
         return
 
@@ -589,14 +634,14 @@ async def add_button(ctx):
         cid = state.get("chat_id")
         if cid is None:
             try:
-                await ctx.show_alert("Не удалось определить открытый чат.")
+                await ctx.show_alert(t("no_chat"))
             except Exception:
                 pass
             return
         # Выгрузка — в фоне, чтобы не тормозить интерфейс.
         asyncio.ensure_future(run_export(ctx, cid))
 
-    mid = await ctx.add_menu_item("💾 Скачать чат", on_click)
+    mid = await ctx.add_menu_item("\U0001F4BE " + t("menu_item"), on_click)
     state["menu"] = mid
 
 
@@ -618,7 +663,7 @@ async def handle_command(ctx, args):
             chat_id = None
     if chat_id is None:
         try:
-            await ctx.show_alert("Откройте чат, который нужно экспортировать.")
+            await ctx.show_alert(t("open_first"))
         except Exception:
             pass
         return
@@ -642,6 +687,17 @@ async def init_plugin(ctx, state_dict):
     мы сохраняем в него идентификатор пункта меню (чтобы при перезапуске
     плагина хост мог его подхватить), но вся рабочая логика живёт в
     модульном словаре `state` — вторая копия состояния не заводится."""
+    # Привязываем контекст хоста: i18n сможет прочитать язык,
+    # установленный системно на устройстве пользователя.
+    if _i18n is not None:
+        try:
+            _i18n.bind_host(ctx)
+            # Пересчитываем локаль: теперь учтён язык, который хост
+            # (AyuGram/Telegrah) сообщает для текущего устройства.
+            _i18n.reload_locale()
+        except Exception:
+            pass
+
     st = state_dict if isinstance(state_dict, dict) else {}
     # Восстановление из персистентного хранилища не требуется: id пункта меню
     # привязан к сессии UI, а чат/отмена — к текущему запуску экспорта.
@@ -668,7 +724,7 @@ async def init_plugin(ctx, state_dict):
     # Команда как запасной вариант
     try:
         ctx.add_command("download_chat", handle_command,
-                        description="Выгрузить историю чата в .txt в папку «Загрузки»")
+                        description=t("cmd_help"))
     except Exception:
         try:
             ctx.add_command("!export", handle_command)
@@ -687,10 +743,14 @@ async def init_plugin(ctx, state_dict):
     try:
         st["manifest"] = {
             "id": PLUGIN_ID,
-            "name": PLUGIN_NAME,
+            "name": t("menu_item"),
             "version": PLUGIN_VERSION,
-            "description": PLUGIN_DESCRIPTION,
+            "description": t("cmd_help"),
             "icon": "icon.png",
+            "locale": (_i18n.ACTIVE_LOCALE if _i18n else "en"),
+            # Локализованные копии манифеста для всех поддерживаемых языков
+            "localizations": ({k: v for k, v in _i18n.build_manifest()}
+                              if _i18n else {}),
         }
     except Exception:
         pass
